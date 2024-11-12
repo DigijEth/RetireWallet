@@ -1,0 +1,28 @@
+# Android/IntelliJ
+.gradle/
+.idea/
+build/
+app/build/
+
+# Keystore files
+*.jks
+
+# Gradle files
+gradle.properties
+
+# Android Studio generated files
+captures/
+.externalNativeBuild/
+.cxx/
+.localproperties
+
+# Environment Variables
+local.properties
+
+# Logs and binaries
+*.log
+*.apk
+*.ap_
+
+# Node Modules (if any)
+node_modules/
