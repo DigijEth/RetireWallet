@@ -17,4 +17,13 @@ mongoose.connect(process.env.MONGO_URI, {
 
 app.use("/api", apiRoutes);
 
+// Global Error Handling Middleware
+app.use((err, req, res, next) => {
+  console.error("An unexpected error occurred:", err);
+  res.status(500).json({
+    message: "An unexpected error occurred. Please try again later.",
+    error: process.env.NODE_ENV === "development" ? err.message : undefined,
+  });
+});
+
 module.exports = app;
