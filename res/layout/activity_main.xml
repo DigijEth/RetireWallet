@@ -1,0 +1,31 @@
+<RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:padding="16dp">
+
+    <TextView
+        android:id="@+id/title"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Connect to Retirement Base Wallet"
+        android:textSize="24sp"
+        android:layout_centerHorizontal="true"
+        android:paddingBottom="32dp"/>
+
+    <Button
+        android:id="@+id/connectMetaMaskButton"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="Connect MetaMask"
+        android:layout_below="@id/title"
+        android:layout_marginTop="16dp"/>
+
+    <Button
+        android:id="@+id/connectCoinbaseButton"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="Connect Coinbase Wallet"
+        android:layout_below="@id/connectMetaMaskButton"
+        android:layout_marginTop="16dp"/>
+
+</RelativeLayout>
