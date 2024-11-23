@@ -36,8 +36,9 @@ contract RetirementWallet {
             balance: 0,
             unlockTimestamp: birthDate + retirementAge,
             isLocked: true,
-            hardshipCodes: new uint256Initialize with space for 3 codes
-        });
+            hardshipCodes: new uint256 
+   });
+
         generateHardshipCodes(msg.sender);
     }
 
@@ -50,7 +51,7 @@ contract RetirementWallet {
     function withdraw(uint256 amount, uint256 hardshipCode) external {
         Account storage userAccount = accounts[msg.sender];
         require(userAccount.balance >= amount, "Insufficient balance");
-        
+
         if (block.timestamp < userAccount.unlockTimestamp) {
             if (isValidHardshipCode(userAccount, hardshipCode)) {
                 userAccount.balance -= amount;
@@ -72,7 +73,7 @@ contract RetirementWallet {
     }
 
     function calculatePenalty(uint256 amount, uint256 unlockTimestamp) internal view returns (uint256) {
-        uint256 remainingTime = unlockTimestamp - block.timestamp;
+        uint256 remainingTime = unlockTimestamp > block.timestamp ? unlockTimestamp - block.timestamp : 0;
         uint256 maxPenalty = (amount * 40) / 100;
         uint256 minPenalty = (amount * 20) / 100;
         uint256 penalty = maxPenalty - ((maxPenalty - minPenalty) * (retirementAge - remainingTime) / retirementAge);
@@ -80,7 +81,7 @@ contract RetirementWallet {
     }
 
     function isValidHardshipCode(Account storage userAccount, uint256 code) internal returns (bool) {
-        for (uint i = 0; i < userAccount.hardshipCodes.length; i++) {
+        for (uint256 i = 0; i < userAccount.hardshipCodes.length; i++) {
             if (userAccount.hardshipCodes[i] == code) {
                 delete userAccount.hardshipCodes[i];
                 return true;
@@ -95,7 +96,7 @@ contract RetirementWallet {
 
         IERC20(tokenIn).approve(address(uniswapRouter), amountIn);
 
-        address[] m      path[0] = tokenIn;
+        address[] memor  path[0] = tokenIn;
         path[1] = tokenOut;
 
         uint256[] memory amounts = uniswapRouter.swapExactTokensForTokens(
@@ -112,8 +113,8 @@ contract RetirementWallet {
 
     function generateHardshipCodes(address user) internal {
         require(!hardshipCodeGenerated[user], "Hardship codes already generated");
-        uint256[] m      
-        for (uint i = 0; i < 3; i++) {
+
+        uint256[] memor  for (uint256 i = 0; i < 3; i++) {
             newCodes[i] = uint256(keccak256(abi.encodePacked(block.timestamp, user, i))) % 1000000000;
         }
 
