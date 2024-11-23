@@ -1,0 +1,78 @@
+// SPDX-License-Identifier: GNU 3.0
+pragma solidity ^0.8.20;
+
+contract RetireWallet {
+    address public manufacturer;
+    uint256 public constant RETIREMENT_AGE = 62 * 365 * 1 days; // Approximation of 62 years in days
+
+    struct Account {
+        uint256 balance;
+        uint256 unlockTimestamp;
+    }
+
+    mapping(address => Account) private accounts;
+
+    event Deposit(address indexed user, uint256 amount);
+    event Withdrawal(address indexed user, uint256 amount, uint256 penalty);
+
+    constructor() {
+        manufacturer = msg.sender;
+    }
+
+    /**
+     * @notice Create a retirement account
+     * @param birthDate The user's birth date as a Unix timestamp
+     */
+    function createAccount(uint256 birthDate) external {
+        require(accounts[msg.sender].unlockTimestamp == 0, "Account already exists");
+
+        accounts[msg.sender] = Account({
+            balance: 0,
+            unlockTimestamp: birthDate + RETIREMENT_AGE
+        });
+    }
+
+    /**
+     * @notice Deposit Ether into the retirement account
+     */
+    function deposit() external payable {
+        require(accounts[msg.sender].unlockTimestamp > 0, "Account does not exist");
+        accounts[msg.sender].balance += msg.value;
+        emit Deposit(msg.sender, msg.value);
+    }
+
+    /**
+     * @notice Withdraw Ether with an optional penalty if withdrawn early
+     * @param amount The amount to withdraw
+     */
+    function withdraw(uint256 amount) external {
+        Account storage userAccount = accounts[msg.sender];
+        require(userAccount.balance >= amount, "Insufficient balance");
+
+        if (block.timestamp < userAccount.unlockTimestamp) {
+            uint256 penalty = _calculatePenalty(amount, userAccount.unlockTimestamp);
+            uint256 finalAmount = amount - penalty;
+            userAccount.balance -= amount;
+            payable(msg.sender).transfer(finalAmount);
+            payable(manufacturer).transfer(penalty);
+            emit Withdrawal(msg.sender, finalAmount, penalty);
+        } else {
+            userAccount.balance -= amount;
+            payable(msg.sender).transfer(amount);
+            emit Withdrawal(msg.sender, amount, 0);
+        }
+    }
+
+    /**
+     * @dev Calculate penalty for early withdrawal
+     * @param amount The amount being withdrawn
+     * @param unlockTimestamp The account's unlock timestamp
+     */
+    function _calculatePenalty(uint256 amount, uint256 unlockTimestamp) internal view returns (uint256) {
+        uint256 remainingTime = unlockTimestamp > block.timestamp ? unlockTimestamp - block.timestamp : 0;
+        uint256 maxPenalty = (amount * 40) / 100;
+        uint256 minPenalty = (amount * 20) / 100;
+        uint256 penalty = maxPenalty - ((maxPenalty - minPenalty) * (RETIREMENT_AGE - remainingTime) / RETIREMENT_AGE);
+        return penalty;
+    }
+}
