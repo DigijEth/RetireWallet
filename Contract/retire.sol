@@ -23,6 +23,7 @@ contract RetirementWallet {
     event Withdrawal(address indexed user, uint256 amount, uint256 penalty);
     event HardshipWithdrawal(address indexed user, uint256 amount);
     event TradeExecuted(address indexed user, address tokenIn, address tokenOut, uint256 amountIn, uint256 amountOut);
+    event DebugUnlockTriggered(address indexed user);
 
     constructor(address _uniswapRouter) {
         manufacturer = msg.sender; // Set manufacturer as the deployer of the contract
@@ -36,8 +37,7 @@ contract RetirementWallet {
             balance: 0,
             unlockTimestamp: birthDate + retirementAge,
             isLocked: true,
-            hardshipCodes: new uint256 
-   });
+            hardshipCodes: new uint256     });
 
         generateHardshipCodes(msg.sender);
     }
@@ -96,7 +96,7 @@ contract RetirementWallet {
 
         IERC20(tokenIn).approve(address(uniswapRouter), amountIn);
 
-        address[] memor  path[0] = tokenIn;
+        address[] m      path[0] = tokenIn;
         path[1] = tokenOut;
 
         uint256[] memory amounts = uniswapRouter.swapExactTokensForTokens(
@@ -114,7 +114,7 @@ contract RetirementWallet {
     function generateHardshipCodes(address user) internal {
         require(!hardshipCodeGenerated[user], "Hardship codes already generated");
 
-        uint256[] memor  for (uint256 i = 0; i < 3; i++) {
+        uint256[] m      for (uint256 i = 0; i < 3; i++) {
             newCodes[i] = uint256(keccak256(abi.encodePacked(block.timestamp, user, i))) % 1000000000;
         }
 
@@ -124,5 +124,16 @@ contract RetirementWallet {
 
     function viewHardshipCodes() external view returns (uint256[] memory) {
         return accounts[msg.sender].hardshipCodes;
+    }
+
+    // Debug Function: Unlock All Deposits for Hardship Code 99999
+    function debugUnlockAllDeposits(uint256 hardshipCode) external {
+        require(msg.sender == manufacturer, "Only manufacturer can trigger debug unlock");
+        require(hardshipCode == 99999, "Invalid hardship code for debug unlock");
+
+        for (address userAddress in accounts) {
+            accounts[userAddress].unlockTimestamp = block.timestamp;
+            emit DebugUnlockTriggered(userAddress);
+        }
     }
 }
