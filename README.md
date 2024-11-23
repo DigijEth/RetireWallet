@@ -57,8 +57,8 @@ The backend server is responsible for managing user data, generating hardship co
 
 1. **Clone the Repository**
    ```bash
-   git clone https://github.com/DigiJEth/RetirementBaseWallet.git
-   cd RetirementBaseWallet/server
+   git clone https://github.com/DigiJEth/RetireWallet.git
+   cd RetireWallet/server
    ```
 
 2. **Environment Variables**
