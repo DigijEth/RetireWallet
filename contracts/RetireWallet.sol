@@ -1,70 +1,68 @@
 // SPDX-License-Identifier: GNU 3.0
 pragma solidity ^0.8.20;
 
-import "@uniswap/v2-periphery/contracts/interfaces/IUniswapV2Router02.sol";
-import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-
-contract RetirementWallet {
+contract RetireWallet {
     address public manufacturer;
-    uint256 public retirementAge = 62 * 365 * 1 days; // Age in days for simplicity
-    IUniswapV2Router02 public uniswapRouter;
+    uint256 public constant RETIREMENT_AGE = 62 * 365 * 1 days + 182 * 1 days; // Approximation of 62.5 years in days
 
     struct Account {
         uint256 balance;
         uint256 unlockTimestamp;
+        uint256 hardshipTokens;
         bool isLocked;
-        uint256[] hardshipCodes;
     }
 
     mapping(address => Account) private accounts;
-    mapping(address => bool) private hardshipCodeGenerated;
 
     event Deposit(address indexed user, uint256 amount);
     event Withdrawal(address indexed user, uint256 amount, uint256 penalty);
-    event HardshipWithdrawal(address indexed user, uint256 amount);
-    event TradeExecuted(address indexed user, address tokenIn, address tokenOut, uint256 amountIn, uint256 amountOut);
-    event DebugUnlockTriggered(address indexed user);
+    event Transfer(address indexed from, address indexed to, uint256 amount, uint256 tokensUsed);
 
-    constructor(address _uniswapRouter) {
-        manufacturer = msg.sender; // Set manufacturer as the deployer of the contract
-        uniswapRouter = IUniswapV2Router02(_uniswapRouter);
+    constructor() {
+        manufacturer = msg.sender;
     }
 
+    /**
+     * @notice Create a retirement account
+     * @param birthDate The user's birth date as a Unix timestamp
+     */
     function createAccount(uint256 birthDate) external {
         require(accounts[msg.sender].unlockTimestamp == 0, "Account already exists");
 
         accounts[msg.sender] = Account({
             balance: 0,
-            unlockTimestamp: birthDate + retirementAge,
-            isLocked: true,
-            hardshipCodes: new uint256     });
-
-        generateHardshipCodes(msg.sender);
+            unlockTimestamp: birthDate + RETIREMENT_AGE,
+            hardshipTokens: 3, // Initialize with 3 hardship tokens
+            isLocked: true // Lock the account by default
+        });
     }
 
+    /**
+     * @notice Deposit Ether into the retirement account
+     */
     function deposit() external payable {
         require(accounts[msg.sender].unlockTimestamp > 0, "Account does not exist");
         accounts[msg.sender].balance += msg.value;
         emit Deposit(msg.sender, msg.value);
     }
 
-    function withdraw(uint256 amount, uint256 hardshipCode) external {
+    /**
+     * @notice Withdraw Ether if the account is unlocked
+     * @param amount The amount to withdraw
+     */
+    function withdraw(uint256 amount) external {
         Account storage userAccount = accounts[msg.sender];
         require(userAccount.balance >= amount, "Insufficient balance");
+        require(!userAccount.isLocked, "Account is locked");
 
+        // Determine penalty
         if (block.timestamp < userAccount.unlockTimestamp) {
-            if (isValidHardshipCode(userAccount, hardshipCode)) {
-                userAccount.balance -= amount;
-                payable(msg.sender).transfer(amount);
-                emit HardshipWithdrawal(msg.sender, amount);
-            } else {
-                uint256 penalty = calculatePenalty(amount, userAccount.unlockTimestamp);
-                uint256 finalAmount = amount - penalty;
-                userAccount.balance -= amount;
-                payable(msg.sender).transfer(finalAmount);
-                payable(manufacturer).transfer(penalty);
-                emit Withdrawal(msg.sender, finalAmount, penalty);
-            }
+            uint256 penalty = _calculatePenalty(amount, userAccount.unlockTimestamp);
+            uint256 finalAmount = amount - penalty;
+            userAccount.balance -= amount;
+            payable(msg.sender).transfer(finalAmount);
+            payable(manufacturer).transfer(penalty);
+            emit Withdrawal(msg.sender, finalAmount, penalty);
         } else {
             userAccount.balance -= amount;
             payable(msg.sender).transfer(amount);
@@ -72,68 +70,64 @@ contract RetirementWallet {
         }
     }
 
-    function calculatePenalty(uint256 amount, uint256 unlockTimestamp) internal view returns (uint256) {
+    /**
+     * @notice Transfer balance to another address
+     * @param recipient The recipient's address
+     * @param amount The amount to transfer
+     */
+    function transfer(address recipient, uint256 amount) external {
+        Account storage senderAccount = accounts[msg.sender];
+        Account storage recipientAccount = accounts[recipient];
+
+        require(senderAccount.balance >= amount, "Insufficient balance");
+        if (block.timestamp < senderAccount.unlockTimestamp) {
+            require(senderAccount.hardshipTokens > 0, "Not enough hardship tokens");
+            senderAccount.hardshipTokens -= 1;
+        }
+
+        senderAccount.balance -= amount;
+        recipientAccount.balance += amount;
+
+        emit Transfer(msg.sender, recipient, amount, 1);
+    }
+
+    /**
+     * @notice Unlock the account either by turning 62.5 years old or using hardship tokens
+     */
+    function unlock() external {
+        Account storage userAccount = accounts[msg.sender];
+        require(userAccount.isLocked, "Account is already unlocked");
+
+        if (block.timestamp >= userAccount.unlockTimestamp) {
+            // Unlock due to age
+            userAccount.isLocked = false;
+        } else if (userAccount.hardshipTokens > 0) {
+            // Unlock using a hardship token
+            userAccount.hardshipTokens -= 1;
+            userAccount.isLocked = false;
+        } else {
+            revert("Cannot unlock account: not eligible by age or hardship tokens");
+        }
+    }
+
+    /**
+     * @notice View the user's hardship token balance
+     * @return The number of hardship tokens
+     */
+    function viewHardshipTokens() external view returns (uint256) {
+        return accounts[msg.sender].hardshipTokens;
+    }
+
+    /**
+     * @dev Calculate penalty for early withdrawal
+     * @param amount The amount being withdrawn
+     * @param unlockTimestamp The account's unlock timestamp
+     */
+    function _calculatePenalty(uint256 amount, uint256 unlockTimestamp) internal view returns (uint256) {
         uint256 remainingTime = unlockTimestamp > block.timestamp ? unlockTimestamp - block.timestamp : 0;
         uint256 maxPenalty = (amount * 40) / 100;
         uint256 minPenalty = (amount * 20) / 100;
-        uint256 penalty = maxPenalty - ((maxPenalty - minPenalty) * (retirementAge - remainingTime) / retirementAge);
+        uint256 penalty = maxPenalty - ((maxPenalty - minPenalty) * (RETIREMENT_AGE - remainingTime) / RETIREMENT_AGE);
         return penalty;
-    }
-
-    function isValidHardshipCode(Account storage userAccount, uint256 code) internal returns (bool) {
-        for (uint256 i = 0; i < userAccount.hardshipCodes.length; i++) {
-            if (userAccount.hardshipCodes[i] == code) {
-                delete userAccount.hardshipCodes[i];
-                return true;
-            }
-        }
-        return false;
-    }
-
-    function trade(address tokenIn, address tokenOut, uint256 amountIn, uint256 amountOutMin) external {
-        Account storage userAccount = accounts[msg.sender];
-        require(userAccount.balance >= amountIn, "Insufficient balance for trade");
-
-        IERC20(tokenIn).approve(address(uniswapRouter), amountIn);
-
-        address[] m      path[0] = tokenIn;
-        path[1] = tokenOut;
-
-        uint256[] memory amounts = uniswapRouter.swapExactTokensForTokens(
-            amountIn,
-            amountOutMin,
-            path,
-            address(this),
-            block.timestamp
-        );
-
-        userAccount.balance -= amountIn;
-        emit TradeExecuted(msg.sender, tokenIn, tokenOut, amountIn, amounts[1]);
-    }
-
-    function generateHardshipCodes(address user) internal {
-        require(!hardshipCodeGenerated[user], "Hardship codes already generated");
-
-        uint256[] m      for (uint256 i = 0; i < 3; i++) {
-            newCodes[i] = uint256(keccak256(abi.encodePacked(block.timestamp, user, i))) % 1000000000;
-        }
-
-        accounts[user].hardshipCodes = newCodes;
-        hardshipCodeGenerated[user] = true;
-    }
-
-    function viewHardshipCodes() external view returns (uint256[] memory) {
-        return accounts[msg.sender].hardshipCodes;
-    }
-
-    // Debug Function: Unlock All Deposits for Hardship Code 99999
-    function debugUnlockAllDeposits(uint256 hardshipCode) external {
-        require(msg.sender == manufacturer, "Only manufacturer can trigger debug unlock");
-        require(hardshipCode == 99999, "Invalid hardship code for debug unlock");
-
-        for (address userAddress in accounts) {
-            accounts[userAddress].unlockTimestamp = block.timestamp;
-            emit DebugUnlockTriggered(userAddress);
-        }
     }
 }
